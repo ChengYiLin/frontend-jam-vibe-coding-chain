@@ -1,46 +1,275 @@
+/* ===== Base Layout ===== */
 #root {
-  max-width: 1280px;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 1.5rem;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* ===== Title ===== */
+.title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(135deg, #4ade80 0%, #22d3ee 50%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 40px rgba(74, 222, 128, 0.3);
+  letter-spacing: 0.1em;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* ===== Score Panel ===== */
+.scores {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.card {
-  padding: 2em;
+.score-box {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  min-width: 100px;
+  transition: all 0.3s ease;
 }
 
-.read-the-docs {
-  color: #888;
+.score-box:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
 }
 
+.score-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+
+.score-num {
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== Settings Row ===== */
+.settings-row {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.setting-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ===== Difficulty Selector ===== */
+.difficulty-selector {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.3rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.diff-btn {
+  padding: 0.5rem 0.9rem;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.diff-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.diff-btn.active {
+  background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
+  color: #0f172a;
+  box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+}
+
+/* ===== Color Selector ===== */
+.color-selector {
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.35rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.color-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color);
+  transition: all 0.2s ease;
+}
+
+.color-btn:hover {
+  transform: scale(1.15);
+}
+
+.color-btn:hover .color-dot {
+  box-shadow: 0 0 12px var(--color);
+}
+
+.color-btn.active {
+  border-color: white;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.color-btn.active .color-dot {
+  box-shadow: 0 0 15px var(--color);
+}
+
+/* ===== Game Canvas ===== */
+.canvas-wrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 20px 50px rgba(0, 0, 0, 0.4),
+    0 0 100px rgba(74, 222, 128, 0.1);
+}
+
+.canvas {
+  display: block;
+  border-radius: 16px;
+}
+
+/* ===== Overlay ===== */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border-radius: 16px;
+  gap: 0.5rem;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ov-icon {
+  font-size: 4rem;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.ov-title {
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.25rem;
+}
+
+.ov-score {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ov-record {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fbbf24;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.ov-hint {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ===== Bottom Hint ===== */
+.hint {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0.5rem 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ===== Animations ===== */
 @keyframes shake {
   0%, 100% { transform: translate(0, 0); }
   10% { transform: translate(-5px, 3px); }
@@ -56,4 +285,57 @@
 
 .shaking {
   animation: shake 0.5s ease-out;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 520px) {
+  #root {
+    padding: 1rem;
+  }
+  
+  .title {
+    font-size: 2rem;
+  }
+  
+  .scores {
+    gap: 1rem;
+  }
+  
+  .score-box {
+    padding: 0.5rem 1rem;
+    min-width: 80px;
+  }
+  
+  .score-num {
+    font-size: 1.5rem;
+  }
+  
+  .settings-row {
+    gap: 1rem;
+  }
+  
+  .diff-btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+  }
+  
+  .color-btn {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .color-dot {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .canvas-wrap {
+    border-radius: 12px;
+  }
+  
+  .canvas {
+    border-radius: 12px;
+    max-width: 100%;
+    height: auto;
+  }
 }

@@ -4,8 +4,25 @@ import './App.css'
 const GRID = 20
 const CELL = 24
 const SIZE = GRID * CELL
-const BASE_SPEED = 150
-const MIN_SPEED = 60
+
+// Difficulty settings: baseSpeed = initial interval, minSpeed = fastest possible
+const DIFFICULTIES = {
+  easy: { label: '簡單', baseSpeed: 180, minSpeed: 100 },
+  medium: { label: '中等', baseSpeed: 100, minSpeed: 60 },
+  hard: { label: '困難', baseSpeed: 60, minSpeed: 40 },
+}
+
+// Snake color presets: body (RGB array), head (hex), eye matches background
+const SNAKE_COLORS = {
+  green: { label: '經典綠', body: [74, 222, 128], head: '#bbf7d0', preview: '#4ade80' },
+  blue: { label: '海洋藍', body: [56, 189, 248], head: '#bae6fd', preview: '#38bdf8' },
+  purple: { label: '神秘紫', body: [167, 139, 250], head: '#ddd6fe', preview: '#a78bfa' },
+  pink: { label: '櫻花粉', body: [244, 114, 182], head: '#fbcfe8', preview: '#f472b6' },
+  orange: { label: '烈焰橙', body: [251, 146, 60], head: '#fed7aa', preview: '#fb923c' },
+  cyan: { label: '極光青', body: [34, 211, 238], head: '#cffafe', preview: '#22d3ee' },
+  yellow: { label: '閃電黃', body: [250, 204, 21], head: '#fef9c3', preview: '#facc15' },
+  red: { label: '熱血紅', body: [248, 113, 113], head: '#fecaca', preview: '#f87171' },
+}
 
 const THEMES = [
   { // 0-40: Deep ocean
@@ -126,9 +143,10 @@ function drawBgAndGrid(ctx, theme) {
   }
 }
 
-function drawCanvas(ctx, state) {
+function drawCanvas(ctx, state, snakeColor) {
   const { snake, food, dir } = state
   const theme = getTheme(state.score)
+  const customSnake = SNAKE_COLORS[snakeColor]
 
   drawBgAndGrid(ctx, theme)
 
@@ -138,8 +156,8 @@ function drawCanvas(ctx, state) {
   ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL / 2 - 3, 0, Math.PI * 2)
   ctx.fill()
 
-  // Snake body
-  const [r, g, b] = theme.body
+  // Snake body - use custom color
+  const [r, g, b] = customSnake.body
   snake.slice(1).forEach(({ x, y }, i) => {
     const alpha = 1 - (i / snake.length) * 0.6
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`
@@ -148,14 +166,14 @@ function drawCanvas(ctx, state) {
     ctx.fill()
   })
 
-  // Snake head
+  // Snake head - use custom color
   const h = snake[0]
-  ctx.fillStyle = theme.head
+  ctx.fillStyle = customSnake.head
   ctx.beginPath()
   ctx.roundRect(h.x * CELL + 1, h.y * CELL + 1, CELL - 2, CELL - 2, 5)
   ctx.fill()
 
-  // Eyes
+  // Eyes - use theme background color for contrast
   ctx.fillStyle = theme.eye
   const cx = h.x * CELL + CELL / 2
   const cy = h.y * CELL + CELL / 2
@@ -175,6 +193,16 @@ export default function App() {
   const [highScore, setHighScore] = useState(() => +(localStorage.getItem('snakeHighScore') || 0))
   const canvasRef = useRef(null)
   const [isNewRecord, setIsNewRecord] = useState(false)
+  const [difficulty, setDifficulty] = useState('medium')
+  const [snakeColor, setSnakeColor] = useState('green')
+
+  // Handle difficulty change - update difficulty and restart if not idle
+  const handleDifficultyChange = (newDifficulty) => {
+    setDifficulty(newDifficulty)
+    if (state.status !== 'idle') {
+      dispatch({ type: 'TOGGLE' }) // Restart game
+    }
+  }
 
   // Update high score
   useEffect(() => {
@@ -193,8 +221,9 @@ export default function App() {
     }
   }, [state.status])
 
-  // Game loop (speed increases with score)
-  const speed = Math.max(MIN_SPEED, BASE_SPEED - Math.floor(state.score / 10) * 5)
+  // Game loop (speed increases with score, based on difficulty)
+  const { baseSpeed, minSpeed } = DIFFICULTIES[difficulty]
+  const speed = Math.max(minSpeed, baseSpeed - Math.floor(state.score / 10) * 5)
   useEffect(() => {
     if (state.status !== 'running') return
     const id = setInterval(() => dispatch({ type: 'TICK' }), speed)
@@ -232,7 +261,8 @@ export default function App() {
     const duration = 800
     const { snake, food } = state
     const theme = getTheme(state.score)
-    const [br, bg, bb] = theme.body
+    const customSnake = SNAKE_COLORS[snakeColor]
+    const [br, bg, bb] = customSnake.body
 
     const particles = snake.map(() => ({
       vx: (Math.random() - 0.5) * 4,
@@ -294,7 +324,7 @@ export default function App() {
       cancelAnimationFrame(rafId)
       wrap.classList.remove('shaking')
     }
-  }, [state.status])
+  }, [state.status, snakeColor])
 
   // Draw
   useEffect(() => {
@@ -302,8 +332,8 @@ export default function App() {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    drawCanvas(ctx, state)
-  }, [state])
+    drawCanvas(ctx, state, snakeColor)
+  }, [state, snakeColor])
 
   return (
     <div className="app">
@@ -317,6 +347,40 @@ export default function App() {
         <div className="score-box">
           <div className="score-label">最高分</div>
           <div className="score-num">{highScore}</div>
+        </div>
+      </div>
+
+      <div className="settings-row">
+        <div className="setting-group">
+          <div className="setting-label">難度</div>
+          <div className="difficulty-selector">
+            {Object.entries(DIFFICULTIES).map(([key, { label }]) => (
+              <button
+                key={key}
+                className={`diff-btn ${difficulty === key ? 'active' : ''}`}
+                onClick={() => handleDifficultyChange(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-group">
+          <div className="setting-label">蛇的顏色</div>
+          <div className="color-selector">
+            {Object.entries(SNAKE_COLORS).map(([key, { label, preview }]) => (
+              <button
+                key={key}
+                className={`color-btn ${snakeColor === key ? 'active' : ''}`}
+                style={{ '--color': preview }}
+                onClick={() => setSnakeColor(key)}
+                title={label}
+              >
+                <span className="color-dot" />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -350,7 +414,11 @@ export default function App() {
         )}
       </div>
 
-      <p className="hint">方向鍵 / WASD 控制方向 Space / Enter 開始/暫停</p>
+      <p className="hint">
+        <span>方向鍵 / WASD 控制方向</span>
+        <span>•</span>
+        <span>Space / Enter 開始/暫停</span>
+      </p>
     </div>
   )
 }
