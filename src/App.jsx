@@ -252,9 +252,9 @@ function randHazard(snakes, food) {
   };
 }
 
-function startState() {
+function startState(gameMode) {
   const snake1 = initSnake1();
-  const snake2 = initSnake2();
+  const snake2 = gameMode === "multi" ? initSnake2() : [];
   const food = randFood(snake1, snake2);
   const hazard = randHazard([...snake1, ...snake2], food);
   return {
@@ -268,6 +268,7 @@ function startState() {
     hazard,
     status: "running",
     whoDied: null,
+    gameMode,
   };
 }
 
@@ -285,8 +286,9 @@ function makeIdle() {
     score2: 0,
     food,
     hazard,
-    status: "idle",
+    status: "mode-selection",
     whoDied: null,
+    gameMode: null,
   };
 }
 
@@ -294,14 +296,22 @@ function reducer(state, action) {
   switch (action.type) {
     case "TOGGLE":
       if (state.status === "dying") return state;
-      if (state.status === "idle" || state.status === "gameover")
-        return startState();
+      if (state.status === "mode-selection") return state; // Mode must be selected first
+      if (state.status === "gameover") return makeIdle();
       if (state.status === "running") return { ...state, status: "paused" };
       if (state.status === "paused") return { ...state, status: "running" };
       return state;
 
+    case "START_GAME":
+      if (state.status === "mode-selection") {
+        return startState(action.gameMode);
+      }
+      return state;
+
     case "DIR": {
       const d = action.dir;
+      // In single player mode, ignore player 2 input
+      if (action.player === 2 && state.gameMode === "single") return state;
       if (action.player === 2) {
         if (d.x === -state.dir2.x && d.y === -state.dir2.y) return state;
         return { ...state, dir2: d };
@@ -312,10 +322,49 @@ function reducer(state, action) {
 
     case "TICK": {
       if (state.status !== "running") return state;
-      const { snake1, dir1, score1, snake2, dir2, score2, food, hazard } =
+      const { snake1, dir1, score1, snake2, dir2, score2, food, hazard, gameMode } =
         state;
 
       const head1 = { x: snake1[0].x + dir1.x, y: snake1[0].y + dir1.y };
+
+      // Single player mode - only check snake1
+      if (gameMode === "single") {
+        const dead1 =
+          head1.x < 0 ||
+          head1.x >= GRID ||
+          head1.y < 0 ||
+          head1.y >= GRID ||
+          snake1.some((s) => s.x === head1.x && s.y === head1.y);
+
+        if (dead1) {
+          return { ...state, status: "dying", whoDied: 1 };
+        }
+
+        const s1AteFood = head1.x === food.x && head1.y === food.y;
+        const s1AteHazard = head1.x === hazard.x && head1.y === hazard.y;
+
+        const newSnake1 = s1AteFood
+          ? [head1, ...snake1]
+          : [head1, ...snake1.slice(0, -1)];
+        const newScore1 = s1AteFood
+          ? score1 + food.score
+          : s1AteHazard
+            ? Math.max(0, score1 - hazard.penalty)
+            : score1;
+
+        const newFood = s1AteFood ? randFood(newSnake1, [], hazard) : food;
+        const newHazard = s1AteHazard ? randHazard([...newSnake1], newFood) : hazard;
+
+        return {
+          ...state,
+          snake1: newSnake1,
+          score1: newScore1,
+          food: newFood,
+          hazard: newHazard,
+        };
+      }
+
+      // Multiplayer mode - check both snakes
       const head2 = { x: snake2[0].x + dir2.x, y: snake2[0].y + dir2.y };
 
       // Head-to-head collision
@@ -587,7 +636,9 @@ function drawCanvas(ctx, state, snakeColor1, snakeColor2) {
   if (state.hazard) drawHazard(ctx, state.hazard);
 
   drawSnake(ctx, state.snake1, state.dir1, SNAKE_COLORS[snakeColor1], theme);
-  drawSnake(ctx, state.snake2, state.dir2, SNAKE_COLORS[snakeColor2], theme);
+  if (state.gameMode === "multi" && state.snake2.length > 0) {
+    drawSnake(ctx, state.snake2, state.dir2, SNAKE_COLORS[snakeColor2], theme);
+  }
 }
 
 export default function App() {
@@ -603,29 +654,33 @@ export default function App() {
 
   const handleDifficultyChange = (newDifficulty) => {
     setDifficulty(newDifficulty);
-    if (state.status !== "idle") {
+    if (state.status !== "mode-selection") {
       dispatch({ type: "TOGGLE" });
     }
   };
 
+  const handleModeSelect = (mode) => {
+    dispatch({ type: "START_GAME", gameMode: mode });
+  };
+
   // Update high score (track best individual score)
   useEffect(() => {
-    const best = Math.max(state.score1, state.score2);
+    const best = state.gameMode === "single" ? state.score1 : Math.max(state.score1, state.score2);
     if (best > 0 && best > highScore) {
       setHighScore(best);
       localStorage.setItem("snakeHighScore", best);
     }
-  }, [state.score1, state.score2]);
+  }, [state.score1, state.score2, state.gameMode, highScore]);
 
   // Track new record on game over
   useEffect(() => {
-    const best = Math.max(state.score1, state.score2);
+    const best = state.gameMode === "single" ? state.score1 : Math.max(state.score1, state.score2);
     if (state.status === "dying" && best > 0) {
       setIsNewRecord(best >= highScore);
     } else if (state.status === "running") {
       setIsNewRecord(false);
     }
-  }, [state.status]);
+  }, [state.status, state.gameMode, state.score1, state.score2, highScore]);
 
   // Game loop (speed increases with combined score, based on difficulty)
   const { baseSpeed, minSpeed } = DIFFICULTIES[difficulty];
@@ -642,7 +697,9 @@ export default function App() {
     const onKey = (e) => {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
-        dispatch({ type: "TOGGLE" });
+        if (state.status !== "mode-selection") {
+          dispatch({ type: "TOGGLE" });
+        }
         return;
       }
       const d1 = DIRS1[e.key];
@@ -659,7 +716,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [state.status]);
 
   // Death animation
   useEffect(() => {
@@ -672,7 +729,7 @@ export default function App() {
 
     const startTime = performance.now();
     const duration = 800;
-    const { snake1, dir1, snake2, dir2, food, hazard, whoDied } = state;
+    const { snake1, dir1, snake2, dir2, food, hazard, whoDied, gameMode } = state;
     const theme = getTheme(state.score1 + state.score2);
 
     // whoDied: 1 = snake1 died, 2 = snake2 died, 0 = both
@@ -680,8 +737,9 @@ export default function App() {
     const dyingColors = SNAKE_COLORS[whoDied === 2 ? snakeColor2 : snakeColor1];
     const [br, bg, bb] = dyingColors.body;
 
-    const livingSnake = whoDied === 1 ? snake2 : whoDied === 2 ? snake1 : null;
-    const livingDir = whoDied === 1 ? dir2 : whoDied === 2 ? dir1 : null;
+    // In single player, there's no living snake
+    const livingSnake = gameMode === "single" ? null : (whoDied === 1 ? snake2 : whoDied === 2 ? snake1 : null);
+    const livingDir = gameMode === "single" ? null : (whoDied === 1 ? dir2 : whoDied === 2 ? dir1 : null);
     const livingColors = livingSnake
       ? SNAKE_COLORS[whoDied === 1 ? snakeColor2 : snakeColor1]
       : null;
@@ -772,21 +830,38 @@ export default function App() {
 
   return (
     <div className="app">
-      <h1 className="title">貪食蛇齊打交</h1>
+      <h1 className="title">
+        {state.gameMode === "single" ? "經典貪食蛇" : state.gameMode === "multi" ? "貪食蛇齊打交" : "貪食蛇遊戲"}
+      </h1>
 
       <div className="scores">
-        <div className="score-box p1">
-          <div className="score-label">P1 分數</div>
-          <div className="score-num">{state.score1}</div>
-        </div>
-        <div className="score-box">
-          <div className="score-label">最高分</div>
-          <div className="score-num">{highScore}</div>
-        </div>
-        <div className="score-box p2">
-          <div className="score-label">P2 分數</div>
-          <div className="score-num">{state.score2}</div>
-        </div>
+        {state.gameMode === "single" ? (
+          <>
+            <div className="score-box">
+              <div className="score-label">分數</div>
+              <div className="score-num">{state.score1}</div>
+            </div>
+            <div className="score-box">
+              <div className="score-label">最高分</div>
+              <div className="score-num">{highScore}</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="score-box p1">
+              <div className="score-label">P1 分數</div>
+              <div className="score-num">{state.score1}</div>
+            </div>
+            <div className="score-box">
+              <div className="score-label">最高分</div>
+              <div className="score-num">{highScore}</div>
+            </div>
+            <div className="score-box p2">
+              <div className="score-label">P2 分數</div>
+              <div className="score-num">{state.score2}</div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="settings-row">
@@ -806,7 +881,7 @@ export default function App() {
         </div>
 
         <div className="setting-group">
-          <div className="setting-label">P1 顏色</div>
+          <div className="setting-label">{state.gameMode === "single" ? "蛇顏色" : "P1 顏色"}</div>
           <div className="color-selector">
             {Object.entries(SNAKE_COLORS).map(([key, { label, preview }]) => (
               <button
@@ -822,22 +897,24 @@ export default function App() {
           </div>
         </div>
 
-        <div className="setting-group">
-          <div className="setting-label">P2 顏色</div>
-          <div className="color-selector">
-            {Object.entries(SNAKE_COLORS).map(([key, { label, preview }]) => (
-              <button
-                key={key}
-                className={`color-btn ${snakeColor2 === key ? "active" : ""}`}
-                style={{ "--color": preview }}
-                onClick={() => setSnakeColor2(key)}
-                title={label}
-              >
-                <span className="color-dot" />
-              </button>
-            ))}
+        {state.gameMode === "multi" && (
+          <div className="setting-group">
+            <div className="setting-label">P2 顏色</div>
+            <div className="color-selector">
+              {Object.entries(SNAKE_COLORS).map(([key, { label, preview }]) => (
+                <button
+                  key={key}
+                  className={`color-btn ${snakeColor2 === key ? "active" : ""}`}
+                  style={{ "--color": preview }}
+                  onClick={() => setSnakeColor2(key)}
+                  title={label}
+                >
+                  <span className="color-dot" />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="canvas-wrap">
@@ -845,11 +922,26 @@ export default function App() {
 
         {state.status !== "running" && state.status !== "dying" && (
           <div className="overlay">
-            {state.status === "idle" && (
+            {state.status === "mode-selection" && (
               <>
                 <div className="ov-icon">🐍</div>
-                <div className="ov-title">雙人貪食蛇</div>
-                <div className="ov-hint">按 Space / Enter 開始</div>
+                <div className="ov-title">選擇遊戲模式</div>
+                <div className="mode-selection-buttons">
+                  <button
+                    className="mode-btn"
+                    onClick={() => handleModeSelect("single")}
+                  >
+                    <span className="mode-icon">🎮</span>
+                    <span className="mode-label">單人模式</span>
+                  </button>
+                  <button
+                    className="mode-btn"
+                    onClick={() => handleModeSelect("multi")}
+                  >
+                    <span className="mode-icon">👥</span>
+                    <span className="mode-label">雙人對戰</span>
+                  </button>
+                </div>
               </>
             )}
             {state.status === "paused" && (
@@ -861,17 +953,23 @@ export default function App() {
             {state.status === "gameover" && (
               <>
                 <div className="ov-title">遊戲結束</div>
-                <div className="ov-scores">
-                  <div className="ov-score-item p1">P1: {state.score1}</div>
-                  <div className="ov-score-item p2">P2: {state.score2}</div>
-                </div>
-                <div className="ov-winner">
-                  {state.score1 > state.score2
-                    ? "🏆 玩家一獲勝！"
-                    : state.score2 > state.score1
-                      ? "🏆 玩家二獲勝！"
-                      : "🤝 平局！"}
-                </div>
+                {state.gameMode === "single" ? (
+                  <div className="ov-score">分數: {state.score1}</div>
+                ) : (
+                  <>
+                    <div className="ov-scores">
+                      <div className="ov-score-item p1">P1: {state.score1}</div>
+                      <div className="ov-score-item p2">P2: {state.score2}</div>
+                    </div>
+                    <div className="ov-winner">
+                      {state.score1 > state.score2
+                        ? "🏆 玩家一獲勝！"
+                        : state.score2 > state.score1
+                          ? "🏆 玩家二獲勝！"
+                          : "🤝 平局！"}
+                    </div>
+                  </>
+                )}
                 {isNewRecord && <div className="ov-record">🎉 新紀錄！</div>}
                 <div className="ov-hint">按 Space / Enter 重新開始</div>
               </>
@@ -880,13 +978,25 @@ export default function App() {
         )}
       </div>
 
-      <p className="hint">
-        <span>P1: WASD</span>
-        <span>•</span>
-        <span>P2: 方向鍵</span>
-        <span>•</span>
-        <span>Space / Enter 開始/暫停</span>
-      </p>
+      {state.gameMode && (
+        <p className="hint">
+          {state.gameMode === "single" ? (
+            <>
+              <span>WASD 移動</span>
+              <span>•</span>
+              <span>Space / Enter 開始/暫停</span>
+            </>
+          ) : (
+            <>
+              <span>P1: WASD</span>
+              <span>•</span>
+              <span>P2: 方向鍵</span>
+              <span>•</span>
+              <span>Space / Enter 開始/暫停</span>
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
